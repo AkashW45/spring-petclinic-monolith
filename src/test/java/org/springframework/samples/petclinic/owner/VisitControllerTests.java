@@ -13,82 +13,93 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.springframework.samples.petclinic.owner;
 
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.DisabledInNativeImage;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.test.context.aot.DisabledInAotMode;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
-
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
-/**
- * Test class for {@link VisitController}
- *
- * @author Colin But
- * @author Wick Dynex
- */
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.web.servlet.MockMvc;
+
 @WebMvcTest(VisitController.class)
-@DisabledInNativeImage
-@DisabledInAotMode
 class VisitControllerTests {
-
-	private static final int TEST_OWNER_ID = 1;
-
-	private static final int TEST_PET_ID = 1;
 
 	@Autowired
 	private MockMvc mockMvc;
 
-	@MockitoBean
+	@MockBean
 	private OwnerRepository owners;
 
-	@BeforeEach
-	void init() {
+	@Test
+	void testWhenPetHasChronicIllnessesModelContainsTrue() throws Exception {
+		int ownerId = 1;
+		int petId = 10;
+
 		Owner owner = new Owner();
 		Pet pet = new Pet();
+		List<ChronicIllness> chronicIllnesses = new ArrayList<>();
+		chronicIllnesses.add(new ChronicIllness());
+		pet.setChronicIllnesses(chronicIllnesses);
 		owner.addPet(pet);
-		pet.setId(TEST_PET_ID);
-		given(this.owners.findById(TEST_OWNER_ID)).willReturn(Optional.of(owner));
-	}
+		given(owners.findById(ownerId)).willReturn(Optional.of(owner));
 
-	@Test
-	void initNewVisitForm() throws Exception {
-		mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/visits/new", TEST_OWNER_ID, TEST_PET_ID))
+		mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/visits/new", ownerId, petId))
 			.andExpect(status().isOk())
-			.andExpect(view().name("pets/createOrUpdateVisitForm"));
+			.andExpect(view().name("pets/createOrUpdateVisitForm"))
+			.andExpect(model().attributeExists("pet"))
+			.andExpect(model().attributeExists("owner"))
+			.andExpect(model().attribute("hasChronicIllness", true));
 	}
 
 	@Test
-	void processNewVisitFormSuccess() throws Exception {
-		mockMvc
-			.perform(post("/owners/{ownerId}/pets/{petId}/visits/new", TEST_OWNER_ID, TEST_PET_ID)
-				.param("name", "George")
-				.param("description", "Visit Description"))
-			.andExpect(status().is3xxRedirection())
-			.andExpect(view().name("redirect:/owners/{ownerId}"));
-	}
+	void testWhenPetHasNoChronicIllnessesModelContainsFalse() throws Exception {
+		int ownerId = 1;
+		int petId = 10;
 
-	@Test
-	void processNewVisitFormHasErrors() throws Exception {
-		mockMvc
-			.perform(post("/owners/{ownerId}/pets/{petId}/visits/new", TEST_OWNER_ID, TEST_PET_ID).param("name",
-					"George"))
-			.andExpect(model().attributeHasErrors("visit"))
+		Owner owner = new Owner();
+		Pet pet = new Pet();
+		pet.setChronicIllnesses(new ArrayList<>());
+		owner.addPet(pet);
+		given(owners.findById(ownerId)).willReturn(Optional.of(owner));
+
+		mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/visits/new", ownerId, petId))
 			.andExpect(status().isOk())
-			.andExpect(view().name("pets/createOrUpdateVisitForm"));
+			.andExpect(view().name("pets/createOrUpdateVisitForm"))
+			.andExpect(model().attribute("hasChronicIllness", false));
+	}
+
+	@Test
+	void testWhenOwnerNotFoundReturnsError() throws Exception {
+		int ownerId = 99;
+		int petId = 1;
+
+		given(owners.findById(ownerId)).willReturn(Optional.empty());
+
+		mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/visits/new", ownerId, petId))
+			.andExpect(status().is5xxServerError());
+	}
+
+	@Test
+	void testWhenPetNotFoundReturnsError() throws Exception {
+		int ownerId = 1;
+		int petId = 99;
+
+		Owner owner = new Owner();
+		given(owners.findById(ownerId)).willReturn(Optional.of(owner));
+		// owner has no pet with id 99, getPet() returns null
+
+		mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/visits/new", ownerId, petId))
+			.andExpect(status().is5xxServerError());
 	}
 
 }

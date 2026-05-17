@@ -82,6 +82,9 @@ class ClinicServiceTests {
 	@Autowired
 	protected VetRepository vets;
 
+	@Autowired
+	protected ChronicIllnessRepository chronicIllnessRepository;
+
 	private final Pageable pageable = Pageable.unpaged();
 
 	@Test
@@ -246,6 +249,36 @@ class ClinicServiceTests {
 			.element(0)
 			.extracting(Visit::getDate)
 			.isNotNull();
+	}
+
+	@Test
+	@Transactional
+	void shouldAssignChronicIllnessToPet() {
+		// Retrieve an existing pet (pet7 of owner6)
+		Optional<Owner> optionalOwner = this.owners.findById(6);
+		assertThat(optionalOwner).isPresent();
+		Owner owner6 = optionalOwner.get();
+		Pet pet7 = owner6.getPet(7);
+
+		// Create a chronic illness
+		ChronicIllness illness = new ChronicIllness();
+		illness.setName("Diabetes");
+		illness.setDiagnosisDate(LocalDate.now());
+		illness.setNotes("Requires regular insulin shots");
+		illness.setPet(pet7);
+
+		// Save via repository
+		this.chronicIllnessRepository.save(illness);
+
+		// Verify the illness was assigned to the pet
+		Optional<ChronicIllness> retrieved = this.chronicIllnessRepository.findById(illness.getId());
+		assertThat(retrieved).isPresent();
+		assertThat(retrieved.get().getPet().getId()).isEqualTo(pet7.getId());
+
+		// Also verify that the pet's collection contains the illness
+		Pet refreshedPet = this.owners.findById(6).get().getPet(7);
+		assertThat(refreshedPet.getChronicIllnesses()).hasSize(1);
+		assertThat(refreshedPet.getChronicIllnesses().iterator().next().getName()).isEqualTo("Diabetes");
 	}
 
 }
