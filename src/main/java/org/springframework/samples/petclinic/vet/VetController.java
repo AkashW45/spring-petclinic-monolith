@@ -25,6 +25,12 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.samples.petclinic.owner.Pet;
+import org.springframework.samples.petclinic.owner.PetRepository;
+import org.springframework.samples.petclinic.owner.ChronicIllness;
+import org.springframework.samples.petclinic.owner.ChronicIllnessRepository;
 
 /**
  * @author Juergen Hoeller
@@ -36,9 +42,13 @@ import org.springframework.web.bind.annotation.ResponseBody;
 class VetController {
 
 	private final VetRepository vetRepository;
+	private final PetRepository petRepository;
+	private final ChronicIllnessRepository chronicIllnessRepository;
 
-	public VetController(VetRepository vetRepository) {
+	public VetController(VetRepository vetRepository, PetRepository petRepository, ChronicIllnessRepository chronicIllnessRepository) {
 		this.vetRepository = vetRepository;
+		this.petRepository = petRepository;
+		this.chronicIllnessRepository = chronicIllnessRepository;
 	}
 
 	@GetMapping("/vets.html")
@@ -73,6 +83,16 @@ class VetController {
 		Vets vets = new Vets();
 		vets.getVetList().addAll(this.vetRepository.findAll());
 		return vets;
+	}
+
+	@PostMapping("/pets/{petId}/chronic-illnesses")
+	public @ResponseBody ChronicIllness assignChronicIllness(@PathVariable int petId, @RequestBody ChronicIllness chronicIllness) {
+		Pet pet = petRepository.findById(petId);
+		if (pet == null) {
+			throw new IllegalArgumentException("Pet not found");
+		}
+		chronicIllness.setPet(pet);
+		return chronicIllnessRepository.save(chronicIllness);
 	}
 
 }

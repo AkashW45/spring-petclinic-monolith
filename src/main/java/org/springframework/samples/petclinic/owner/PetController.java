@@ -36,6 +36,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import jakarta.validation.Valid;
 
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.samples.petclinic.owner.ChronicIllness;
+import org.springframework.samples.petclinic.owner.ChronicIllnessRepository;
 
 /**
  * @author Juergen Hoeller
@@ -53,9 +56,12 @@ class PetController {
 
 	private final PetTypeRepository types;
 
-	public PetController(OwnerRepository owners, PetTypeRepository types) {
+	private final ChronicIllnessRepository chronicIllnessRepository;
+
+	public PetController(OwnerRepository owners, PetTypeRepository types, ChronicIllnessRepository chronicIllnessRepository) {
 		this.owners = owners;
 		this.types = types;
+		this.chronicIllnessRepository = chronicIllnessRepository;
 	}
 
 	@ModelAttribute("types")
@@ -178,6 +184,25 @@ class PetController {
 			owner.addPet(pet);
 		}
 		this.owners.save(owner);
+	}
+
+	@PostMapping("/pets/{petId}/chronic-illnesses")
+	public String assignChronicIllness(@PathVariable("ownerId") int ownerId, @PathVariable("petId") int petId,
+			@RequestParam("illnessName") String illnessName, RedirectAttributes redirectAttributes) {
+		Optional<Owner> optionalOwner = this.owners.findById(ownerId);
+		Owner owner = optionalOwner.orElseThrow(() -> new IllegalArgumentException(
+				"Owner not found with id: " + ownerId));
+		Pet pet = owner.getPet(petId);
+		if (pet == null) {
+			throw new IllegalArgumentException("Pet not found with id: " + petId);
+		}
+		// Create a new ChronicIllness entity and associate with pet
+		ChronicIllness chronicIllness = new ChronicIllness();
+		chronicIllness.setName(illnessName);
+		chronicIllness.setPet(pet);
+		this.chronicIllnessRepository.save(chronicIllness);
+		redirectAttributes.addFlashAttribute("message", "Chronic illness assigned successfully");
+		return "redirect:/owners/{ownerId}/pets/{petId}";
 	}
 
 }

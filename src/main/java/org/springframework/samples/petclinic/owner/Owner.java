@@ -173,4 +173,14 @@ public class Owner extends Person {
 		pet.addVisit(visit);
 	}
 
+	/**
+	 * Returns the list of pets that have at least one chronic illness.
+	 * @return list of pets with chronic illnesses, never null
+	 */
+	public List<Pet> getPetsWithChronicIllnesses() {
+		return getPets().stream()
+			.filter(pet -> pet.hasChronicIllness())
+			.collect(Collectors.toList());
+	}
+
 }

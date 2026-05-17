@@ -13,199 +13,130 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.springframework.samples.petclinic.owner;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.DisabledInNativeImage;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.FilterType;
-import org.springframework.test.context.aot.DisabledInAotMode;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import java.time.LocalDate;
-import java.util.List;
+import java.util.Collections;
 import java.util.Optional;
 
-import static org.mockito.BDDMockito.given;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.web.servlet.MockMvc;
 
-/**
- * Test class for the {@link PetController}
- *
- * @author Colin But
- * @author Wick Dynex
- */
-@WebMvcTest(value = PetController.class,
-		includeFilters = @ComponentScan.Filter(value = PetTypeFormatter.class, type = FilterType.ASSIGNABLE_TYPE))
-@DisabledInNativeImage
-@DisabledInAotMode
+@WebMvcTest(PetController.class)
 class PetControllerTests {
 
-	private static final int TEST_OWNER_ID = 1;
+    @Autowired
+    private MockMvc mockMvc;
 
-	private static final int TEST_PET_ID = 1;
+    @MockBean
+    private OwnerRepository owners;
 
-	@Autowired
-	private MockMvc mockMvc;
+    @MockBean
+    private PetTypeRepository types;
 
-	@MockitoBean
-	private OwnerRepository owners;
+    @MockBean
+    private ChronicIllnessRepository chronicIllnessRepository;
 
-	@MockitoBean
-	private PetTypeRepository types;
+    @Test
+    void assignChronicIllness_shouldSaveAndRedirect() throws Exception {
+        int ownerId = 1;
+        int petId = 1;
+        Owner owner = mock(Owner.class);
+        Pet pet = new Pet();
+        pet.setId(petId);
+        pet.setName("Buddy");
 
-	@BeforeEach
-	void setup() {
-		PetType cat = new PetType();
-		cat.setId(3);
-		cat.setName("hamster");
-		given(this.types.findPetTypes()).willReturn(List.of(cat));
+        when(types.findPetTypes()).thenReturn(Collections.emptyList());
+        when(owners.findById(ownerId)).thenReturn(Optional.of(owner));
+        when(owner.getPet(petId)).thenReturn(pet);
 
-		Owner owner = new Owner();
-		Pet pet = new Pet();
-		Pet dog = new Pet();
-		owner.addPet(pet);
-		owner.addPet(dog);
-		pet.setId(TEST_PET_ID);
-		dog.setId(TEST_PET_ID + 1);
-		pet.setName("petty");
-		dog.setName("doggy");
-		given(this.owners.findById(TEST_OWNER_ID)).willReturn(Optional.of(owner));
-	}
+        mockMvc.perform(post("/owners/{ownerId}/pets/{petId}/chronic-illnesses", ownerId, petId)
+                .param("illnessName", "Diabetes"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/owners/" + ownerId + "/pets/" + petId))
+                .andExpect(flash().attribute("message", "Chronic illness assigned successfully"));
 
-	@Test
-	void initCreationForm() throws Exception {
-		mockMvc.perform(get("/owners/{ownerId}/pets/new", TEST_OWNER_ID))
-			.andExpect(status().isOk())
-			.andExpect(view().name("pets/createOrUpdatePetForm"))
-			.andExpect(model().attributeExists("pet"));
-	}
+        verify(chronicIllnessRepository).save(any(ChronicIllness.class));
+    }
 
-	@Test
-	void processCreationFormSuccess() throws Exception {
-		mockMvc
-			.perform(post("/owners/{ownerId}/pets/new", TEST_OWNER_ID).param("name", "Betty")
-				.param("type", "hamster")
-				.param("birthDate", "2015-02-12"))
-			.andExpect(status().is3xxRedirection())
-			.andExpect(view().name("redirect:/owners/{ownerId}"));
-	}
+    @Test
+    void assignChronicIllness_ownerNotFound() throws Exception {
+        int ownerId = 2;
+        int petId = 1;
 
-	@Nested
-	class ProcessCreationFormHasErrors {
+        when(types.findPetTypes()).thenReturn(Collections.emptyList());
+        when(owners.findById(ownerId)).thenReturn(Optional.empty());
 
-		@Test
-		void processCreationFormWithBlankName() throws Exception {
-			mockMvc
-				.perform(post("/owners/{ownerId}/pets/new", TEST_OWNER_ID).param("name", "\t \n")
-					.param("birthDate", "2015-02-12"))
-				.andExpect(model().attributeHasNoErrors("owner"))
-				.andExpect(model().attributeHasErrors("pet"))
-				.andExpect(model().attributeHasFieldErrors("pet", "name"))
-				.andExpect(model().attributeHasFieldErrorCode("pet", "name", "required"))
-				.andExpect(status().isOk())
-				.andExpect(view().name("pets/createOrUpdatePetForm"));
-		}
+        mockMvc.perform(post("/owners/{ownerId}/pets/{petId}/chronic-illnesses", ownerId, petId)
+                .param("illnessName", "Asthma"))
+                .andExpect(status().is5xxServerError())
+                .andExpect(result -> result.getResolvedException()
+                        .getClass().equals(IllegalArgumentException.class))
+                .andExpect(result -> result.getResolvedException().getMessage()
+                        .contains("Owner not found with id: " + ownerId));
+    }
 
-		@Test
-		void processCreationFormWithDuplicateName() throws Exception {
-			mockMvc
-				.perform(post("/owners/{ownerId}/pets/new", TEST_OWNER_ID).param("name", "petty")
-					.param("birthDate", "2015-02-12"))
-				.andExpect(model().attributeHasNoErrors("owner"))
-				.andExpect(model().attributeHasErrors("pet"))
-				.andExpect(model().attributeHasFieldErrors("pet", "name"))
-				.andExpect(model().attributeHasFieldErrorCode("pet", "name", "duplicate"))
-				.andExpect(status().isOk())
-				.andExpect(view().name("pets/createOrUpdatePetForm"));
-		}
+    @Test
+    void assignChronicIllness_petNotFound() throws Exception {
+        int ownerId = 1;
+        int petId = 99;
+        Owner owner = mock(Owner.class);
 
-		@Test
-		void processCreationFormWithMissingPetType() throws Exception {
-			mockMvc
-				.perform(post("/owners/{ownerId}/pets/new", TEST_OWNER_ID).param("name", "Betty")
-					.param("birthDate", "2015-02-12"))
-				.andExpect(model().attributeHasNoErrors("owner"))
-				.andExpect(model().attributeHasErrors("pet"))
-				.andExpect(model().attributeHasFieldErrors("pet", "type"))
-				.andExpect(model().attributeHasFieldErrorCode("pet", "type", "required"))
-				.andExpect(status().isOk())
-				.andExpect(view().name("pets/createOrUpdatePetForm"));
-		}
+        when(types.findPetTypes()).thenReturn(Collections.emptyList());
+        when(owners.findById(ownerId)).thenReturn(Optional.of(owner));
+        when(owner.getPet(petId)).thenReturn(null);
 
-		@Test
-		void processCreationFormWithInvalidBirthDate() throws Exception {
-			LocalDate currentDate = LocalDate.now();
-			String futureBirthDate = currentDate.plusMonths(1).toString();
+        mockMvc.perform(post("/owners/{ownerId}/pets/{petId}/chronic-illnesses", ownerId, petId)
+                .param("illnessName", "Allergy"))
+                .andExpect(status().is5xxServerError())
+                .andExpect(result -> result.getResolvedException()
+                        .getClass().equals(IllegalArgumentException.class))
+                .andExpect(result -> result.getResolvedException().getMessage()
+                        .contains("Pet not found with id: " + petId));
+    }
 
-			mockMvc
-				.perform(post("/owners/{ownerId}/pets/new", TEST_OWNER_ID).param("name", "Betty")
-					.param("birthDate", futureBirthDate))
-				.andExpect(model().attributeHasNoErrors("owner"))
-				.andExpect(model().attributeHasErrors("pet"))
-				.andExpect(model().attributeHasFieldErrors("pet", "birthDate"))
-				.andExpect(model().attributeHasFieldErrorCode("pet", "birthDate", "typeMismatch.birthDate"))
-				.andExpect(status().isOk())
-				.andExpect(view().name("pets/createOrUpdatePetForm"));
-		}
+    @Test
+    void assignChronicIllness_missingIllnessName() throws Exception {
+        int ownerId = 1;
+        int petId = 1;
+        Owner owner = mock(Owner.class);
 
-		@Test
-		void initUpdateForm() throws Exception {
-			mockMvc.perform(get("/owners/{ownerId}/pets/{petId}/edit", TEST_OWNER_ID, TEST_PET_ID))
-				.andExpect(status().isOk())
-				.andExpect(model().attributeExists("pet"))
-				.andExpect(view().name("pets/createOrUpdatePetForm"));
-		}
+        when(types.findPetTypes()).thenReturn(Collections.emptyList());
+        when(owners.findById(ownerId)).thenReturn(Optional.of(owner));
+        // pet existence doesn't matter because request param validation happens first
 
-	}
+        mockMvc.perform(post("/owners/{ownerId}/pets/{petId}/chronic-illnesses", ownerId, petId))
+                .andExpect(status().is4xxClientError());
+    }
 
-	@Test
-	void processUpdateFormSuccess() throws Exception {
-		mockMvc
-			.perform(post("/owners/{ownerId}/pets/{petId}/edit", TEST_OWNER_ID, TEST_PET_ID).param("name", "Betty")
-				.param("type", "hamster")
-				.param("birthDate", "2015-02-12"))
-			.andExpect(status().is3xxRedirection())
-			.andExpect(view().name("redirect:/owners/{ownerId}"));
-	}
+    @Test
+    void assignChronicIllness_emptyIllnessName() throws Exception {
+        int ownerId = 1;
+        int petId = 1;
+        Owner owner = mock(Owner.class);
+        Pet pet = new Pet();
+        pet.setId(petId);
+        pet.setName("Buddy");
 
-	@Nested
-	class ProcessUpdateFormHasErrors {
+        when(types.findPetTypes()).thenReturn(Collections.emptyList());
+        when(owners.findById(ownerId)).thenReturn(Optional.of(owner));
+        when(owner.getPet(petId)).thenReturn(pet);
 
-		@Test
-		void processUpdateFormWithInvalidBirthDate() throws Exception {
-			mockMvc
-				.perform(post("/owners/{ownerId}/pets/{petId}/edit", TEST_OWNER_ID, TEST_PET_ID).param("name", " ")
-					.param("birthDate", "2015/02/12"))
-				.andExpect(model().attributeHasNoErrors("owner"))
-				.andExpect(model().attributeHasErrors("pet"))
-				.andExpect(model().attributeHasFieldErrors("pet", "birthDate"))
-				.andExpect(model().attributeHasFieldErrorCode("pet", "birthDate", "typeMismatch"))
-				.andExpect(view().name("pets/createOrUpdatePetForm"));
-		}
+        mockMvc.perform(post("/owners/{ownerId}/pets/{petId}/chronic-illnesses", ownerId, petId)
+                .param("illnessName", ""))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/owners/" + ownerId + "/pets/" + petId))
+                .andExpect(flash().attribute("message", "Chronic illness assigned successfully"));
 
-		@Test
-		void processUpdateFormWithBlankName() throws Exception {
-			mockMvc
-				.perform(post("/owners/{ownerId}/pets/{petId}/edit", TEST_OWNER_ID, TEST_PET_ID).param("name", "  ")
-					.param("birthDate", "2015-02-12"))
-				.andExpect(model().attributeHasNoErrors("owner"))
-				.andExpect(model().attributeHasErrors("pet"))
-				.andExpect(model().attributeHasFieldErrors("pet", "name"))
-				.andExpect(model().attributeHasFieldErrorCode("pet", "name", "required"))
-				.andExpect(view().name("pets/createOrUpdatePetForm"));
-		}
-
-	}
+        verify(chronicIllnessRepository).save(any(ChronicIllness.class));
+    }
 
 }

@@ -73,6 +73,7 @@ class VisitController {
 		}
 		model.put("pet", pet);
 		model.put("owner", owner);
+		model.put("hasChronicIllness", !pet.getChronicIllnesses().isEmpty());
 
 		Visit visit = new Visit();
 		pet.addVisit(visit);
