@@ -1,95 +1,99 @@
 package org.springframework.samples.petclinic.owner;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class OwnerTests {
 
-    @Mock
-    private Pet chronicPet;
-
-    @Mock
-    private Pet healthyPet;
-
-    @Mock
-    private Pet throwingPet;
-
-    @InjectMocks
-    private Owner owner;
-
-    // --- Happy path ---
-
     @Test
-    @DisplayName("getPetsWithChronicIllnesses returns only pets with chronic disease")
-    void shouldReturnOnlyPetsWithChronicIllness() {
-        owner.getPets().add(chronicPet);
-        owner.getPets().add(healthyPet);
+    void getPetsWithChronicIllnesses_returnsOnlyPetsWithChronicIllness() {
+        Owner owner = new Owner();
+        Pet healthyPet = mock(Pet.class);
+        when(healthyPet.isNew()).thenReturn(true);
+        Pet chronicPet = mock(Pet.class);
+        when(chronicPet.isNew()).thenReturn(true);
         when(chronicPet.hasChronicIllness()).thenReturn(true);
-        when(healthyPet.hasChronicIllness()).thenReturn(false);
+        owner.addPet(healthyPet);
+        owner.addPet(chronicPet);
 
         List<Pet> result = owner.getPetsWithChronicIllnesses();
 
-        assertEquals(1, result.size());
-        assertTrue(result.contains(chronicPet));
-        assertFalse(result.contains(healthyPet));
+        assertThat(result).containsExactly(chronicPet);
     }
 
-    // --- Edge case: owner has no pets ---
-
     @Test
-    @DisplayName("getPetsWithChronicIllnesses returns empty list when owner has no pets")
-    void shouldReturnEmptyListWhenNoPets() {
-        assertTrue(owner.getPetsWithChronicIllnesses().isEmpty());
-    }
-
-    // --- Edge case: all pets are healthy ---
-
-    @Test
-    @DisplayName("getPetsWithChronicIllnesses returns empty list when no pet has chronic illness")
-    void shouldReturnEmptyListWhenAllPetsHealthy() {
-        owner.getPets().add(healthyPet);
-        owner.getPets().add(chronicPet);
-        when(healthyPet.hasChronicIllness()).thenReturn(false);
-        when(chronicPet.hasChronicIllness()).thenReturn(false);
+    void getPetsWithChronicIllnesses_withNoPets_returnsEmptyList() {
+        Owner owner = new Owner();
 
         List<Pet> result = owner.getPetsWithChronicIllnesses();
 
-        assertTrue(result.isEmpty());
+        assertThat(result).isEmpty();
     }
 
-    // --- Edge case: null pet in list ---
-
     @Test
-    @DisplayName("getPetsWithChronicIllnesses throws NullPointerException when pet list contains null")
-    void shouldThrowNullPointerExceptionWhenPetListContainsNull() {
-        owner.getPets().add(null);
-        owner.getPets().add(chronicPet);
-        when(chronicPet.hasChronicIllness()).thenReturn(true);
+    void getPetsWithChronicIllnesses_whenAllPetsHaveChronicIllness_returnsAll() {
+        Owner owner = new Owner();
+        Pet pet1 = mock(Pet.class);
+        when(pet1.isNew()).thenReturn(true);
+        when(pet1.hasChronicIllness()).thenReturn(true);
+        Pet pet2 = mock(Pet.class);
+        when(pet2.isNew()).thenReturn(true);
+        when(pet2.hasChronicIllness()).thenReturn(true);
+        owner.addPet(pet1);
+        owner.addPet(pet2);
 
-        assertThrows(NullPointerException.class,
-                () -> owner.getPetsWithChronicIllnesses());
+        List<Pet> result = owner.getPetsWithChronicIllnesses();
+
+        assertThat(result).containsExactly(pet1, pet2);
     }
 
-    // --- Error path: hasChronicIllness() throws exception ---
+    @Test
+    void getPetsWithChronicIllnesses_whenNoPetsHaveChronicIllness_returnsEmptyList() {
+        Owner owner = new Owner();
+        Pet pet1 = mock(Pet.class);
+        when(pet1.isNew()).thenReturn(true);
+        Pet pet2 = mock(Pet.class);
+        when(pet2.isNew()).thenReturn(true);
+        owner.addPet(pet1);
+        owner.addPet(pet2);
+
+        List<Pet> result = owner.getPetsWithChronicIllnesses();
+
+        assertThat(result).isEmpty();
+    }
 
     @Test
-    @DisplayName("getPetsWithChronicIllnesses propagates exception from Pet.hasChronicIllness")
-    void shouldPropagateExceptionFromHasChronicIllness() {
-        owner.getPets().add(throwingPet);
-        when(throwingPet.hasChronicIllness()).thenThrow(new RuntimeException("DB error"));
+    void getPetsWithChronicIllnesses_withNullPet_throwsNullPointerException() {
+        Owner owner = new Owner();
+        List<Pet> petsWithNull = new ArrayList<>();
+        petsWithNull.add(null);
+        ReflectionTestUtils.setField(owner, "pets", petsWithNull);
 
-        assertThrows(RuntimeException.class,
-                () -> owner.getPetsWithChronicIllnesses());
+        assertThatThrownBy(() -> owner.getPetsWithChronicIllnesses())
+                .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void getPetsWithChronicIllnesses_whenHasChronicIllnessThrowsException_propagatesException() {
+        Owner owner = new Owner();
+        Pet pet = mock(Pet.class);
+        when(pet.isNew()).thenReturn(true);
+        when(pet.hasChronicIllness()).thenThrow(new RuntimeException("Test exception"));
+        owner.addPet(pet);
+
+        assertThatThrownBy(() -> owner.getPetsWithChronicIllnesses())
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("Test exception");
     }
 }

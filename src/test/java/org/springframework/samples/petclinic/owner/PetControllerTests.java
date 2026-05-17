@@ -1,5 +1,27 @@
+/*
+ * Copyright 2012-2025 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.springframework.samples.petclinic.owner;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+import java.util.Collections;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -7,14 +29,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
-
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(PetController.class)
 class PetControllerTests {
@@ -32,72 +46,97 @@ class PetControllerTests {
     private ChronicIllnessRepository chronicIllnessRepository;
 
     @Test
-    void testAssignChronicIllnessSuccess() throws Exception {
+    void assignChronicIllness_shouldSaveAndRedirect() throws Exception {
         int ownerId = 1;
-        int petId = 10;
-        String illnessName = "Diabetes";
-
-        Owner owner = new Owner();
-        owner.setId(ownerId);
+        int petId = 1;
+        Owner owner = mock(Owner.class);
         Pet pet = new Pet();
         pet.setId(petId);
-        owner.addPet(pet);
-        when(owners.findById(ownerId)).thenReturn(Optional.of(owner));
-        // types.findPetTypes() may be called due to @ModelAttribute; return empty to avoid NPE
-        when(types.findPetTypes()).thenReturn(java.util.Collections.emptyList());
+        pet.setName("Buddy");
 
-        mockMvc.perform(MockMvcRequestBuilders
-                .post("/owners/{ownerId}/pets/{petId}/chronic-illnesses", ownerId, petId)
-                .param("illnessName", illnessName))
+        when(types.findPetTypes()).thenReturn(Collections.emptyList());
+        when(owners.findById(ownerId)).thenReturn(Optional.of(owner));
+        when(owner.getPet(petId)).thenReturn(pet);
+
+        mockMvc.perform(post("/owners/{ownerId}/pets/{petId}/chronic-illnesses", ownerId, petId)
+                .param("illnessName", "Diabetes"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(MockMvcResultMatchers.redirectedUrl("/owners/" + ownerId + "/pets/" + petId))
-                .andExpect(MockMvcResultMatchers.flash().attribute("message", "Chronic illness assigned successfully"));
+                .andExpect(redirectedUrl("/owners/" + ownerId + "/pets/" + petId))
+                .andExpect(flash().attribute("message", "Chronic illness assigned successfully"));
 
         verify(chronicIllnessRepository).save(any(ChronicIllness.class));
     }
 
     @Test
-    void testAssignChronicIllnessOwnerNotFound() throws Exception {
-        int ownerId = 1;
-        int petId = 10;
-        String illnessName = "Diabetes";
+    void assignChronicIllness_ownerNotFound() throws Exception {
+        int ownerId = 2;
+        int petId = 1;
 
+        when(types.findPetTypes()).thenReturn(Collections.emptyList());
         when(owners.findById(ownerId)).thenReturn(Optional.empty());
-        // types.findPetTypes() might be called before the handler method; prevent NPE
-        when(types.findPetTypes()).thenReturn(java.util.Collections.emptyList());
 
-        mockMvc.perform(MockMvcRequestBuilders
-                .post("/owners/{ownerId}/pets/{petId}/chronic-illnesses", ownerId, petId)
-                .param("illnessName", illnessName))
-                .andExpect(status().is5xxServerError()); // illegal argument leads to 500
+        mockMvc.perform(post("/owners/{ownerId}/pets/{petId}/chronic-illnesses", ownerId, petId)
+                .param("illnessName", "Asthma"))
+                .andExpect(status().is5xxServerError())
+                .andExpect(result -> result.getResolvedException()
+                        .getClass().equals(IllegalArgumentException.class))
+                .andExpect(result -> result.getResolvedException().getMessage()
+                        .contains("Owner not found with id: " + ownerId));
     }
 
     @Test
-    void testAssignChronicIllnessPetNotFound() throws Exception {
+    void assignChronicIllness_petNotFound() throws Exception {
         int ownerId = 1;
-        int petId = 10;
-        String illnessName = "Diabetes";
+        int petId = 99;
+        Owner owner = mock(Owner.class);
 
-        Owner owner = new Owner();
-        owner.setId(ownerId);
-        // do not add any pet, so getPet returns null
+        when(types.findPetTypes()).thenReturn(Collections.emptyList());
         when(owners.findById(ownerId)).thenReturn(Optional.of(owner));
-        when(types.findPetTypes()).thenReturn(java.util.Collections.emptyList());
+        when(owner.getPet(petId)).thenReturn(null);
 
-        mockMvc.perform(MockMvcRequestBuilders
-                .post("/owners/{ownerId}/pets/{petId}/chronic-illnesses", ownerId, petId)
-                .param("illnessName", illnessName))
-                .andExpect(status().is5xxServerError());
+        mockMvc.perform(post("/owners/{ownerId}/pets/{petId}/chronic-illnesses", ownerId, petId)
+                .param("illnessName", "Allergy"))
+                .andExpect(status().is5xxServerError())
+                .andExpect(result -> result.getResolvedException()
+                        .getClass().equals(IllegalArgumentException.class))
+                .andExpect(result -> result.getResolvedException().getMessage()
+                        .contains("Pet not found with id: " + petId));
     }
 
     @Test
-    void testAssignChronicIllnessMissingIllnessName() throws Exception {
+    void assignChronicIllness_missingIllnessName() throws Exception {
         int ownerId = 1;
-        int petId = 10;
+        int petId = 1;
+        Owner owner = mock(Owner.class);
 
-        // Not providing the required request parameter 'illnessName'
-        mockMvc.perform(MockMvcRequestBuilders
-                .post("/owners/{ownerId}/pets/{petId}/chronic-illnesses", ownerId, petId))
-                .andExpect(status().isBadRequest());
+        when(types.findPetTypes()).thenReturn(Collections.emptyList());
+        when(owners.findById(ownerId)).thenReturn(Optional.of(owner));
+        // pet existence doesn't matter because request param validation happens first
+
+        mockMvc.perform(post("/owners/{ownerId}/pets/{petId}/chronic-illnesses", ownerId, petId))
+                .andExpect(status().is4xxClientError());
     }
+
+    @Test
+    void assignChronicIllness_emptyIllnessName() throws Exception {
+        int ownerId = 1;
+        int petId = 1;
+        Owner owner = mock(Owner.class);
+        Pet pet = new Pet();
+        pet.setId(petId);
+        pet.setName("Buddy");
+
+        when(types.findPetTypes()).thenReturn(Collections.emptyList());
+        when(owners.findById(ownerId)).thenReturn(Optional.of(owner));
+        when(owner.getPet(petId)).thenReturn(pet);
+
+        mockMvc.perform(post("/owners/{ownerId}/pets/{petId}/chronic-illnesses", ownerId, petId)
+                .param("illnessName", ""))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/owners/" + ownerId + "/pets/" + petId))
+                .andExpect(flash().attribute("message", "Chronic illness assigned successfully"));
+
+        verify(chronicIllnessRepository).save(any(ChronicIllness.class));
+    }
+
 }
