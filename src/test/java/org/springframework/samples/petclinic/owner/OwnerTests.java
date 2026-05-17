@@ -1,12 +1,15 @@
 package org.springframework.samples.petclinic.owner;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -14,77 +17,79 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class OwnerTests {
 
     @Mock
-    private Pet pet1, pet2, pet3;
+    private Pet chronicPet;
+
+    @Mock
+    private Pet healthyPet;
+
+    @Mock
+    private Pet throwingPet;
+
+    @InjectMocks
+    private Owner owner;
+
+    // --- Happy path ---
 
     @Test
-    void testGetPetsWithChronicIllnessesMixed() {
-        // Arrange
-        when(pet1.isNew()).thenReturn(true);
-        when(pet2.isNew()).thenReturn(true);
-        when(pet3.isNew()).thenReturn(true);
-        when(pet1.hasChronicIllness()).thenReturn(true);
-        when(pet2.hasChronicIllness()).thenReturn(false);
-        when(pet3.hasChronicIllness()).thenReturn(true);
+    @DisplayName("getPetsWithChronicIllnesses returns only pets with chronic disease")
+    void shouldReturnOnlyPetsWithChronicIllness() {
+        owner.getPets().add(chronicPet);
+        owner.getPets().add(healthyPet);
+        when(chronicPet.hasChronicIllness()).thenReturn(true);
+        when(healthyPet.hasChronicIllness()).thenReturn(false);
 
-        Owner owner = new Owner();
-        owner.addPet(pet1);
-        owner.addPet(pet2);
-        owner.addPet(pet3);
-
-        // Act
         List<Pet> result = owner.getPetsWithChronicIllnesses();
 
-        // Assert
-        assertThat(result).containsExactlyInAnyOrder(pet1, pet3);
+        assertEquals(1, result.size());
+        assertTrue(result.contains(chronicPet));
+        assertFalse(result.contains(healthyPet));
     }
 
+    // --- Edge case: owner has no pets ---
+
     @Test
-    void testGetPetsWithChronicIllnessesNoPets() {
-        // Arrange
-        Owner owner = new Owner();
-
-        // Act
-        List<Pet> result = owner.getPetsWithChronicIllnesses();
-
-        // Assert
-        assertThat(result).isEmpty();
+    @DisplayName("getPetsWithChronicIllnesses returns empty list when owner has no pets")
+    void shouldReturnEmptyListWhenNoPets() {
+        assertTrue(owner.getPetsWithChronicIllnesses().isEmpty());
     }
 
+    // --- Edge case: all pets are healthy ---
+
     @Test
-    void testGetPetsWithChronicIllnessesAllChronic() {
-        // Arrange
-        when(pet1.isNew()).thenReturn(true);
-        when(pet2.isNew()).thenReturn(true);
-        when(pet1.hasChronicIllness()).thenReturn(true);
-        when(pet2.hasChronicIllness()).thenReturn(true);
+    @DisplayName("getPetsWithChronicIllnesses returns empty list when no pet has chronic illness")
+    void shouldReturnEmptyListWhenAllPetsHealthy() {
+        owner.getPets().add(healthyPet);
+        owner.getPets().add(chronicPet);
+        when(healthyPet.hasChronicIllness()).thenReturn(false);
+        when(chronicPet.hasChronicIllness()).thenReturn(false);
 
-        Owner owner = new Owner();
-        owner.addPet(pet1);
-        owner.addPet(pet2);
-
-        // Act
         List<Pet> result = owner.getPetsWithChronicIllnesses();
 
-        // Assert
-        assertThat(result).containsExactlyInAnyOrder(pet1, pet2);
+        assertTrue(result.isEmpty());
     }
 
+    // --- Edge case: null pet in list ---
+
     @Test
-    void testGetPetsWithChronicIllnessesNoneChronic() {
-        // Arrange
-        when(pet1.isNew()).thenReturn(true);
-        when(pet2.isNew()).thenReturn(true);
-        when(pet1.hasChronicIllness()).thenReturn(false);
-        when(pet2.hasChronicIllness()).thenReturn(false);
+    @DisplayName("getPetsWithChronicIllnesses throws NullPointerException when pet list contains null")
+    void shouldThrowNullPointerExceptionWhenPetListContainsNull() {
+        owner.getPets().add(null);
+        owner.getPets().add(chronicPet);
+        when(chronicPet.hasChronicIllness()).thenReturn(true);
 
-        Owner owner = new Owner();
-        owner.addPet(pet1);
-        owner.addPet(pet2);
+        assertThrows(NullPointerException.class,
+                () -> owner.getPetsWithChronicIllnesses());
+    }
 
-        // Act
-        List<Pet> result = owner.getPetsWithChronicIllnesses();
+    // --- Error path: hasChronicIllness() throws exception ---
 
-        // Assert
-        assertThat(result).isEmpty();
+    @Test
+    @DisplayName("getPetsWithChronicIllnesses propagates exception from Pet.hasChronicIllness")
+    void shouldPropagateExceptionFromHasChronicIllness() {
+        owner.getPets().add(throwingPet);
+        when(throwingPet.hasChronicIllness()).thenThrow(new RuntimeException("DB error"));
+
+        assertThrows(RuntimeException.class,
+                () -> owner.getPetsWithChronicIllnesses());
     }
 }
