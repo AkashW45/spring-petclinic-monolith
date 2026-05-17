@@ -36,7 +36,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import jakarta.validation.Valid;
 
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import org.springframework.samples.petclinic.owner.ChronicIllnessRepository;
+import org.springframework.samples.petclinic.owner.ChronicIllness;
 
 /**
  * @author Juergen Hoeller
@@ -53,12 +53,10 @@ class PetController {
 	private final OwnerRepository owners;
 
 	private final PetTypeRepository types;
-	private final ChronicIllnessRepository chronicIllnessRepository;
 
-	public PetController(OwnerRepository owners, PetTypeRepository types, ChronicIllnessRepository chronicIllnessRepository) {
+	public PetController(OwnerRepository owners, PetTypeRepository types) {
 		this.owners = owners;
 		this.types = types;
-		this.chronicIllnessRepository = chronicIllnessRepository;
 	}
 
 	@ModelAttribute("types")
@@ -176,29 +174,16 @@ class PetController {
 			existingPet.setName(pet.getName());
 			existingPet.setBirthDate(pet.getBirthDate());
 			existingPet.setType(pet.getType());
+			// Update chronic illnesses
+			existingPet.getChronicIllnesses().clear();
+			if (pet.getChronicIllnesses() != null) {
+				existingPet.getChronicIllnesses().addAll(pet.getChronicIllnesses());
+			}
 		}
 		else {
 			owner.addPet(pet);
 		}
 		this.owners.save(owner);
-	}
-
-	@PostMapping("/pets/{petId}/chronicIllnesses")
-	public String assignChronicIllness(@PathVariable("ownerId") int ownerId,
-			@PathVariable("petId") int petId,
-			@RequestParam("illnessId") int illnessId,
-			RedirectAttributes redirectAttributes) {
-		Owner owner = findOwner(ownerId);
-		Pet pet = owner.getPet(petId);
-		if (pet == null) {
-			return "redirect:/owners/{ownerId}";
-		}
-		ChronicIllness illness = this.chronicIllnessRepository.findById(illnessId)
-				.orElseThrow(() -> new IllegalArgumentException("Invalid illness ID: " + illnessId));
-		pet.addChronicIllness(illness);
-		this.owners.save(owner);
-		redirectAttributes.addFlashAttribute("message", "Chronic illness assigned to pet");
-		return "redirect:/owners/{ownerId}";
 	}
 
 }

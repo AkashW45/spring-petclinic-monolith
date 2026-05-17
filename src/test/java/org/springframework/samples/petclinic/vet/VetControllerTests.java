@@ -34,10 +34,20 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * Test class for the {@link VetController}
+ * Test class for the {@link VetController	@Test
+	void testAssignChronicIllness() throws Exception {
+		// Mock POST to assign chronic illness
+		mockMvc.perform(post("/vets/1/pets/1/chronicIllnesses")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"name\":\"Diabetes\"}"))
+			.andExpect(status().isOk());
+	}
+
+}
  */
 
 @WebMvcTest(VetController.class)

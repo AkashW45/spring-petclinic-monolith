@@ -173,12 +173,13 @@ public class Owner extends Person {
 		pet.addVisit(visit);
 	}
 
-	/**
-	 * Check if any of this owner's pets has a chronic illness.
-	 * @return true if at least one pet has a chronic illness
-	 */
 	public boolean hasPetWithChronicIllness() {
-		return getPets().stream().anyMatch(Pet::hasChronicIllness);
+		for (Pet pet : getPets()) {
+			if (pet.getChronicIllnesses() != null && !pet.getChronicIllnesses().isEmpty()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 }
