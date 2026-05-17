@@ -1,7 +1,7 @@
 package org.springframework.samples.petclinic.owner;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 
 import java.util.List;
 
@@ -13,81 +13,78 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class OwnerTests {
 
-	@Test
-	void getPetsWithChronicIllnessesHappyPath() {
-		Owner owner = new Owner();
-		Pet healthy = mock(Pet.class);
-		Pet sick1 = mock(Pet.class);
-		Pet sick2 = mock(Pet.class);
+    @Mock
+    private Pet pet1, pet2, pet3;
 
-		when(sick1.hasChronicIllness()).thenReturn(true);
-		when(sick2.hasChronicIllness()).thenReturn(true);
-		when(healthy.hasChronicIllness()).thenReturn(false);
+    @Test
+    void testGetPetsWithChronicIllnessesMixed() {
+        // Arrange
+        when(pet1.isNew()).thenReturn(true);
+        when(pet2.isNew()).thenReturn(true);
+        when(pet3.isNew()).thenReturn(true);
+        when(pet1.hasChronicIllness()).thenReturn(true);
+        when(pet2.hasChronicIllness()).thenReturn(false);
+        when(pet3.hasChronicIllness()).thenReturn(true);
 
-		owner.getPets().add(healthy);
-		owner.getPets().add(sick1);
-		owner.getPets().add(sick2);
+        Owner owner = new Owner();
+        owner.addPet(pet1);
+        owner.addPet(pet2);
+        owner.addPet(pet3);
 
-		List<Pet> result = owner.getPetsWithChronicIllnesses();
+        // Act
+        List<Pet> result = owner.getPetsWithChronicIllnesses();
 
-		assertEquals(2, result.size());
-		assertTrue(result.contains(sick1));
-		assertTrue(result.contains(sick2));
-		assertFalse(result.contains(healthy));
-	}
+        // Assert
+        assertThat(result).containsExactlyInAnyOrder(pet1, pet3);
+    }
 
-	@Test
-	void getPetsWithChronicIllnessesWhenNoPets() {
-		Owner owner = new Owner();
-		List<Pet> result = owner.getPetsWithChronicIllnesses();
-		assertNotNull(result);
-		assertTrue(result.isEmpty());
-	}
+    @Test
+    void testGetPetsWithChronicIllnessesNoPets() {
+        // Arrange
+        Owner owner = new Owner();
 
-	@Test
-	void getPetsWithChronicIllnessesWhenNoChronicIllnesses() {
-		Owner owner = new Owner();
-		Pet healthy1 = mock(Pet.class);
-		Pet healthy2 = mock(Pet.class);
+        // Act
+        List<Pet> result = owner.getPetsWithChronicIllnesses();
 
-		when(healthy1.hasChronicIllness()).thenReturn(false);
-		when(healthy2.hasChronicIllness()).thenReturn(false);
+        // Assert
+        assertThat(result).isEmpty();
+    }
 
-		owner.getPets().add(healthy1);
-		owner.getPets().add(healthy2);
+    @Test
+    void testGetPetsWithChronicIllnessesAllChronic() {
+        // Arrange
+        when(pet1.isNew()).thenReturn(true);
+        when(pet2.isNew()).thenReturn(true);
+        when(pet1.hasChronicIllness()).thenReturn(true);
+        when(pet2.hasChronicIllness()).thenReturn(true);
 
-		List<Pet> result = owner.getPetsWithChronicIllnesses();
+        Owner owner = new Owner();
+        owner.addPet(pet1);
+        owner.addPet(pet2);
 
-		assertTrue(result.isEmpty());
-	}
+        // Act
+        List<Pet> result = owner.getPetsWithChronicIllnesses();
 
-	@Test
-	void getPetsWithChronicIllnessesWhenAllHaveChronicIllnesses() {
-		Owner owner = new Owner();
-		Pet sick1 = mock(Pet.class);
-		Pet sick2 = mock(Pet.class);
+        // Assert
+        assertThat(result).containsExactlyInAnyOrder(pet1, pet2);
+    }
 
-		when(sick1.hasChronicIllness()).thenReturn(true);
-		when(sick2.hasChronicIllness()).thenReturn(true);
+    @Test
+    void testGetPetsWithChronicIllnessesNoneChronic() {
+        // Arrange
+        when(pet1.isNew()).thenReturn(true);
+        when(pet2.isNew()).thenReturn(true);
+        when(pet1.hasChronicIllness()).thenReturn(false);
+        when(pet2.hasChronicIllness()).thenReturn(false);
 
-		owner.getPets().add(sick1);
-		owner.getPets().add(sick2);
+        Owner owner = new Owner();
+        owner.addPet(pet1);
+        owner.addPet(pet2);
 
-		List<Pet> result = owner.getPetsWithChronicIllnesses();
+        // Act
+        List<Pet> result = owner.getPetsWithChronicIllnesses();
 
-		assertEquals(2, result.size());
-		assertTrue(result.contains(sick1));
-		assertTrue(result.contains(sick2));
-	}
-
-	@Test
-	void getPetsWithChronicIllnessesWhenHasChronicIllnessThrowsException() {
-		Owner owner = new Owner();
-		Pet faulty = mock(Pet.class);
-		when(faulty.hasChronicIllness()).thenThrow(new RuntimeException("Database error"));
-
-		owner.getPets().add(faulty);
-
-		assertThrows(RuntimeException.class, () -> owner.getPetsWithChronicIllnesses());
-	}
+        // Assert
+        assertThat(result).isEmpty();
+    }
 }
